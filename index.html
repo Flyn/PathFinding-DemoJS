@@ -104,10 +104,10 @@
                     y: node.y - 1
                 });
             }
-            if (node.y - 1 >= 0 && node.x - 1 >= 0) {
+            if (node.y + 1 < data.length && node.x - 1 >= 0) {
                 neighbors.push({
                     x: node.x - 1,
-                    y: node.y - 1
+                    y: node.y + 1
                 });
             }
             if (node.y + 1 < data.length && node.x + 1 < data[0].length) {
