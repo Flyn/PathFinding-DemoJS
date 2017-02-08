@@ -38,6 +38,7 @@
     var context;
     var start;
     var finish;
+    var invert = false;
 
     function heuristic(x1, y1, x2, y2) {
         var dx = Math.abs(x1 - x2);
@@ -146,7 +147,11 @@
 
             for (i = 0; i < neighbors.length; i++) {
                 var neighbor = neighbors[i];
-                if (findNode(closed, neighbor) !== -1 || !data[neighbor.y][neighbor.x]) {
+                var walkable = data[neighbor.y][neighbor.x];
+                if (invert) {
+                    walkable = !walkable;
+                }
+                if (findNode(closed, neighbor) !== -1 || !walkable) {
                     continue;
                 }
 
@@ -198,12 +203,14 @@
             document.getElementById('startbtn').disabled = true;
             document.getElementById('finishbtn').disabled = true;
             document.getElementById('clearbtn').disabled = true;
+            document.getElementById('invertbtn').disabled = true;
             document.getElementById('gobtn').disabled = true;
         } else {
             document.getElementById('drawbtn').disabled = false;
             document.getElementById('startbtn').disabled = false;
             document.getElementById('finishbtn').disabled = false;
             document.getElementById('clearbtn').disabled = false;
+            document.getElementById('invertbtn').disabled = false;
             if (start && finish) {
                 document.getElementById('gobtn').disabled = false;
             } else {
@@ -238,7 +245,7 @@
         context.stroke();
     }
 
-    function redraw() {
+    function redraw(onlywhite) {
         context.clearRect(0, 0, context.canvas.width, context.canvas.height); // Clears the canvas
 
         context.strokeStyle = '#FFFFFF';
@@ -257,18 +264,20 @@
             context.stroke();
         }
 
-        if (start) {
-            context.strokeStyle = '#0000FF';
-            context.lineWidth = 2;
-            context.lineJoin = 'miter';
-            drawCross(start.x, start.y);
-        }
+        if (!onlywhite) { // not racist
+            if (start) {
+                context.strokeStyle = '#0000FF';
+                context.lineWidth = 2;
+                context.lineJoin = 'miter';
+                drawCross(start.x, start.y);
+            }
 
-        if (finish) {
-            context.strokeStyle = '#FF0000';
-            context.lineWidth = 2;
-            context.lineJoin = 'miter';
-            drawCross(finish.x, finish.y);
+            if (finish) {
+                context.strokeStyle = '#FF0000';
+                context.lineWidth = 2;
+                context.lineJoin = 'miter';
+                drawCross(finish.x, finish.y);
+            }
         }
 
     }
@@ -279,14 +288,18 @@
                 x: ev.pageX - this.offsetLeft,
                 y: ev.pageY - this.offsetTop
             };
+            var walkable = context.getImageData(point.x, point.y, 1, 1).data[3];
+            if (invert) {
+                walkable = !walkable;
+            }
             if (mode === 'setStart') {
-                if (context.getImageData(point.x, point.y, 1, 1).data[3]) {
+                if (walkable) {
                     start = point;
                     redraw();
                 }
             }
             if (mode === 'setFinish') {
-                if (context.getImageData(point.x, point.y, 1, 1).data[3]) {
+                if (walkable) {
                     finish = point;
                     redraw();
                 }
@@ -338,9 +351,23 @@
         document.getElementById('mode_text').innerHTML = 'Draw paths on canvas (white is walkable)';
     }
 
+    function onInvertClick() {
+        start = null;
+        finish = null;
+        redraw();
+        invert = !invert;
+        updateButtons();
+        if (invert) {
+            document.getElementById('invertbtn').innerHTML = 'White is Non-Walkable';
+        } else {
+            document.getElementById('invertbtn').innerHTML = 'White is Walkable';
+        }
+    }
+
+
     function onGoClick() {
         mode = 'go';
-        redraw();
+        redraw(true);
         updateButtons();
         document.getElementById('mode_text').innerHTML = 'Calculating';
         // calculating
@@ -353,6 +380,7 @@
                 image[i][j / 4] = (data[j + 3] === 255);
             }
         }
+        redraw();
 
         context.fillStyle = '#00FFFF';
 
@@ -380,6 +408,7 @@
         document.getElementById('clearbtn').onclick = onClearClick;
         document.getElementById('startbtn').onclick = onStartClick;
         document.getElementById('finishbtn').onclick = onFinishClick;
+        document.getElementById('invertbtn').onclick = onInvertClick;
         document.getElementById('gobtn').onclick = onGoClick;
         var canvas = document.getElementById('draw_canvas');
         context = canvas.getContext('2d');
@@ -399,6 +428,7 @@
             <button id="clearbtn">Clear</button>
             <button id="startbtn">Set Start</button>
             <button id="finishbtn">Set Finish</button>
+            <button id="invertbtn">White is Walkable</button>
             <button id="gobtn" disabled>Go</button>
         </div>
     </div>
