@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>A*</title>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+    body {
+        background-color: black;
+    }
+
+    #draw_canvas {
+        background-color: #333;
+    }
+
+    .editor {
+        margin: auto;
+        width: 500px;
+    }
+
+    #mode_text {
+        color: white;
+        text-align: center;
+        height: 2em;
+        line-height: 2em;
+    }
+
+    #buttons {
+        text-align: center;
+    }
+    </style>
+    <script>
+    var mode = '';
+    var drawing = false;
+    var strokes = [];
+    var context;
+    var start;
+    var finish;
+
+    function heuristic(x1, y1, x2, y2) {
+        var dx = Math.abs(x1 - x2);
+        var dy = Math.abs(y1 - y2);
+        var D = 1;
+        var D2 = Math.sqrt(2);
+        return D * (dx + dy) + (D2 - 2 * D) * Math.min(dx, dy);
+    }
+
+    function findNode(array, node) {
+        var indexFound = -1;
+        for (var i = 0; i < array.length; i++) {
+            if (array[i].x === node.x && array[i].y === node.y) {
+                indexFound = i;
+                break;
+            }
+        }
+        return indexFound;
+    }
+
+    function removeNode(array, node) {
+        var indexToRemove = findNode(array, node);
+        if (indexToRemove !== -1) {
+            array.splice(indexToRemove, 1);
+        }
+    }
+
+    function getNeighbors(data, node, diagonals) {
+        var neighbors = [];
+        if (node.x - 1 >= 0) {
+            neighbors.push({
+                x: node.x - 1,
+                y: node.y
+            });
+        }
+        if (node.x + 1 < data[0].length) {
+            neighbors.push({
+                x: node.x + 1,
+                y: node.y
+            });
+        }
+        if (node.y - 1 >= 0) {
+            neighbors.push({
+                x: node.x,
+                y: node.y - 1
+            });
+        }
+        if (node.y + 1 < data.length) {
+            neighbors.push({
+                x: node.x,
+                y: node.y + 1
+            });
+        }
+        if (diagonals) {
+            if (node.x - 1 >= 0 && node.y - 1 >= 0) {
+                neighbors.push({
+                    x: node.x - 1,
+                    y: node.y - 1
+                });
+            }
+            if (node.x + 1 < data[0].length && node.y - 1 >= 0) {
+                neighbors.push({
+                    x: node.x + 1,
+                    y: node.y - 1
+                });
+            }
+            if (node.y - 1 >= 0 && node.x - 1 >= 0) {
+                neighbors.push({
+                    x: node.x - 1,
+                    y: node.y - 1
+                });
+            }
+            if (node.y + 1 < data.length && node.x + 1 < data[0].length) {
+                neighbors.push({
+                    x: node.x + 1,
+                    y: node.y + 1
+                });
+            }
+        }
+        return neighbors;
+    }
+
+    function recurastar(open, closed, data, start, finish, color, callback) {
+
+        if (open.length > 0) {
+
+            var lowestF = 0;
+            for (var i = 0; i < open.length; i++) {
+                if (open[i].f < open[lowestF].f) {
+                    lowestF = i;
+                }
+            }
+            var current = open[lowestF];
+            color(current.x, current.y);
+
+            if (current.x === finish.x && current.y === finish.y) {
+                callback(current);
+                open.splice(0, open.length);
+                return;
+            }
+
+            removeNode(open, current);
+            closed.push(current);
+
+            var neighbors = getNeighbors(data, current, true);
+
+            for (i = 0; i < neighbors.length; i++) {
+                var neighbor = neighbors[i];
+                if (findNode(closed, neighbor) !== -1 || !data[neighbor.y][neighbor.x]) {
+                    continue;
+                }
+
+                var gscore = current.g + 1;
+                var bestg = false;
+
+                if (findNode(open, neighbor) === -1) {
+                    bestg = true;
+                    neighbor.h = heuristic(neighbor.x, neighbor.y, finish.x, finish.y);
+                    open.push(neighbor);
+                } else if (gscore < neighbor.g) {
+                    bestg = true;
+                }
+
+                if (bestg) {
+                    neighbor.parent = current;
+                    neighbor.g = gscore;
+                    neighbor.f = neighbor.g + neighbor.h;
+                }
+            }
+            setTimeout(function() {
+                for (var r = 0; r < 10; r++) {
+                    recurastar(open, closed, data, start, finish, color, callback);
+                }
+            }, 0);
+        }
+    }
+
+    function astar(data, start, finish, color, callback) {
+        var open = [];
+        var closed = [];
+
+        var startNode = {
+            x: start.x,
+            y: start.y,
+            f: 0,
+            g: 0
+        };
+
+        open.push(startNode);
+
+        recurastar(open, closed, data, startNode, finish, color, callback);
+    }
+
+
+    function updateButtons() {
+        if (mode === 'go') {
+            document.getElementById('drawbtn').disabled = true;
+            document.getElementById('startbtn').disabled = true;
+            document.getElementById('finishbtn').disabled = true;
+            document.getElementById('clearbtn').disabled = true;
+            document.getElementById('gobtn').disabled = true;
+        } else {
+            document.getElementById('drawbtn').disabled = false;
+            document.getElementById('startbtn').disabled = false;
+            document.getElementById('finishbtn').disabled = false;
+            document.getElementById('clearbtn').disabled = false;
+            if (start && finish) {
+                document.getElementById('gobtn').disabled = false;
+            } else {
+                document.getElementById('gobtn').disabled = true;
+            }
+        }
+    }
+
+    function drawPoint(x, y) {
+        context.fillRect(x, y, 1, 1);
+    }
+
+    function drawCross(x, y) {
+        context.beginPath();
+        context.moveTo(x - 2, y);
+        context.lineTo(x + 2, y);
+        context.moveTo(x, y);
+        context.lineTo(x, y - 2);
+        context.lineTo(x, y + 2);
+        context.closePath();
+        context.stroke();
+    }
+
+    function drawPath(path) {
+        context.strokeStyle = '#FF0000';
+        context.lineWidth = 1;
+        context.moveTo(path.x, path.y);
+        while (path.parent) {
+            path = path.parent;
+            context.lineTo(path.x, path.y);
+        }
+        context.stroke();
+    }
+
+    function redraw() {
+        context.clearRect(0, 0, context.canvas.width, context.canvas.height); // Clears the canvas
+
+        context.strokeStyle = '#FFFFFF';
+        context.lineJoin = 'round';
+        context.lineWidth = 20;
+
+        for (var i = 0; i < strokes.length; i++) {
+            context.beginPath();
+            if (strokes[i].line && i) {
+                context.moveTo(strokes[i - 1].x, strokes[i - 1].y);
+            } else {
+                context.moveTo(strokes[i].x - 1, strokes[i].y);
+            }
+            context.lineTo(strokes[i].x, strokes[i].y);
+            context.closePath();
+            context.stroke();
+        }
+
+        if (start) {
+            context.strokeStyle = '#0000FF';
+            context.lineWidth = 2;
+            context.lineJoin = 'miter';
+            drawCross(start.x, start.y);
+        }
+
+        if (finish) {
+            context.strokeStyle = '#FF0000';
+            context.lineWidth = 2;
+            context.lineJoin = 'miter';
+            drawCross(finish.x, finish.y);
+        }
+
+    }
+
+    function setupCanvasEvents(canvas) {
+        canvas.onclick = function(ev) {
+            var point = {
+                x: ev.pageX - this.offsetLeft,
+                y: ev.pageY - this.offsetTop
+            };
+            if (mode === 'setStart') {
+                if (context.getImageData(point.x, point.y, 1, 1).data[3]) {
+                    start = point;
+                    redraw();
+                }
+            }
+            if (mode === 'setFinish') {
+                if (context.getImageData(point.x, point.y, 1, 1).data[3]) {
+                    finish = point;
+                    redraw();
+                }
+            }
+            updateButtons();
+        };
+
+        canvas.onmousedown = function(ev) {
+            if (mode === 'draw') {
+                drawing = true;
+                strokes.push({
+                    x: ev.pageX - this.offsetLeft,
+                    y: ev.pageY - this.offsetTop
+                });
+                redraw();
+            }
+        };
+        canvas.onmousemove = function(ev) {
+            if (drawing) {
+                strokes.push({
+                    x: ev.pageX - this.offsetLeft,
+                    y: ev.pageY - this.offsetTop,
+                    line: true
+                });
+                redraw();
+            }
+        };
+        canvas.onmouseup = function() {
+            drawing = false;
+        };
+        canvas.onmouseleave = function() {
+            drawing = false;
+        };
+    }
+
+    function onStartClick() {
+        mode = 'setStart';
+        document.getElementById('clearbtn').disabled = false;
+        document.getElementById('mode_text').innerHTML = 'Click on canvas to set the start point';
+    }
+
+    function onFinishClick() {
+        mode = 'setFinish';
+        document.getElementById('mode_text').innerHTML = 'Click on canvas to set the finish point';
+    }
+
+    function onDrawClick() {
+        mode = 'draw';
+        document.getElementById('mode_text').innerHTML = 'Draw on canvas';
+    }
+
+    function onGoClick() {
+        mode = 'go';
+        redraw();
+        updateButtons();
+        document.getElementById('mode_text').innerHTML = 'Calculating';
+        // calculating
+        var image = [];
+
+        for (var i = 0; i < context.canvas.height; i++) {
+            image[i] = [];
+            var data = context.getImageData(0, i, context.canvas.width, 1).data;
+            for (var j = 0; j < data.length; j += 4) {
+                image[i][j / 4] = (data[j + 3] === 255);
+            }
+        }
+
+        context.fillStyle = '#00FFFF';
+
+        astar(image, start, finish, drawPoint, function(path) {
+            drawPath(path);
+            // Done
+            document.getElementById('mode_text').innerHTML = 'Done';
+            mode = 'draw';
+            updateButtons();
+        });
+
+    }
+
+    function onClearClick() {
+        mode = 'draw';
+        strokes = [];
+        start = null;
+        finish = null;
+        updateButtons();
+        redraw();
+    }
+
+    window.onload = function() {
+        document.getElementById('drawbtn').onclick = onDrawClick;
+        document.getElementById('clearbtn').onclick = onClearClick;
+        document.getElementById('startbtn').onclick = onStartClick;
+        document.getElementById('finishbtn').onclick = onFinishClick;
+        document.getElementById('gobtn').onclick = onGoClick;
+        var canvas = document.getElementById('draw_canvas');
+        context = canvas.getContext('2d');
+        setupCanvasEvents(canvas);
+    };
+    </script>
+</head>
+
+<body>
+    <div class="editor">
+        <div id="mode_text">Click on draw to start</div>
+        <canvas id="draw_canvas" width="500" height="500">
+            Well, shit.
+        </canvas>
+        <div id="buttons">
+            <button id="drawbtn">Draw</button>
+            <button id="clearbtn">Clear</button>
+            <button id="startbtn">Set Start</button>
+            <button id="finishbtn">Set Finish</button>
+            <button id="gobtn" disabled>Go</button>
+        </div>
+    </div>
+</body>
+
+</html>
